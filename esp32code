@@ -1,75 +1,40 @@
-/*
- * ESP-WROOM-32 + MPU-6050 + Active Buzzer
- * -----------------------------------------
- * Wiring:
- *   MPU-6050        ESP32
- *   --------        -----
- *   VCC  ---------- 3.3V
- *   GND  ---------- GND
- *   SDA  ---------- GPIO 21
- *   SCL  ---------- GPIO 22
- *
- *   Active Buzzer   ESP32
- *   -------------   -----
- *   +  ------------ GPIO 25
- *   -  ------------ GND
- *
- *   Built-in LED    (GPIO 2 on most ESP32 dev boards — blue)
- *
- * Behaviour:
- *   1. Blue LED turns ON at boot to confirm the sketch is running.
- *   2. MPU-6050 is read in a loop; when acceleration exceeds a
- *      threshold the buzzer sounds for a short burst.
- */
+## ESP32 Firmware
 
-#include <Wire.h>
+The ESP32 is the main controller for the NEXIS IoT Bike Lock. It is responsible for reading sensor data, checking tamper conditions, connecting to WiFi, and sending alerts when theft-related events are detected.
 
-// ── Pin definitions ──
-#define BUZZER_PIN  25
-#define LED_PIN      2   // built-in blue LED on most ESP32 boards
+### Firmware Responsibilities
 
-// ── MPU-6050 I2C address ──
-#define MPU_ADDR  0x68
+- Read motion data from the MPU6050
+- Monitor conductive wire loop continuity
+- Read GPS data for location and geofence checks
+- Control buzzer behavior
+- Connect to WiFi
+- Send event data to the backend or alert service
+- Manage system states such as idle, armed, warning, and alarm
 
-// ── Tuning ──
-#define ACCEL_THRESHOLD  1.5   // g's above baseline to count as "motion"
-#define BUZZ_DURATION_MS  300  // how long the buzzer stays on per trigger
-#define LOOP_DELAY_MS      50  // polling interval
+### Planned Firmware Logic
 
-// Baseline (gravity-compensated) — set during calibration
-float baseX = 0, baseY = 0, baseZ = 0;
+1. Initialize sensors and WiFi
+2. Wait in armed state
+3. Continuously check:
+   - motion threshold
+   - wire loop integrity
+   - GPS position
+4. If suspicious movement is detected:
+   - trigger warning state
+   - activate buzzer
+   - send alert
+5. If wire cut or geofence breach is detected:
+   - trigger alarm state
+   - send high-priority alert
+   - include GPS location if available
 
-/* ── Read raw accel and convert to g ── */
-void readAccel(float &ax, float &ay, float &az) {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x3B);                    // ACCEL_XOUT_H register
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU_ADDR, 6, true);
+### Example Firmware Folder
 
-  int16_t rawX = (Wire.read() << 8) | Wire.read();
-  int16_t rawY = (Wire.read() << 8) | Wire.read();
-  int16_t rawZ = (Wire.read() << 8) | Wire.read();
-
-  // Default range ±2 g → 16384 LSB/g
-  ax = rawX / 16384.0;
-  ay = rawY / 16384.0;
-  az = rawZ / 16384.0;
-}
-
-/* ── Calibrate: average 50 samples while sensor is still ── */
-void calibrate() {
-  float sx = 0, sy = 0, sz = 0;
-  const int samples = 50;
-
-  for (int i = 0; i < samples; i++) {
-    float ax, ay, az;
-    readAccel(ax, ay, az);
-    sx += ax;  sy += ay;  sz += az;
-    delay(10);
-  }
-
-  baseX = sx / samples;
-  baseY = sy / samples;
-  baseZ = sz / samples;
-
-  Serial.printf("Baseline  X:%.2f  Y:%.2f  Z
+```text
+firmware/
+└── esp32/
+    ├── src/
+    ├── include/
+    ├── platformio.ini
+    └── README.md
