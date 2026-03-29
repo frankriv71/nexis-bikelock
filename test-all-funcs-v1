@@ -1,0 +1,253 @@
+/*
+ * ESP-WROOM-32 + MPU-6050 + Active Buzzer + GT-U7 GPS Test. 
+ * -----------------------------------------------------
+ * Wiring:
+ *   MPU-6050        ESP32
+ *   --------        -----
+ *   VCC  ---------- 3.3V
+ *   GND  ---------- GND
+ *   SDA  ---------- GPIO 21
+ *   SCL  ---------- GPIO 22
+ *
+ *   Active Buzzer   ESP32
+ *   -------------   -----
+ *   +  ------------ GPIO 25
+ *   -  ------------ GND
+ *
+ *   GT-U7 GPS       ESP32
+ *   ----------       -----
+ *   VCC  ---------- 3.3V  (or 5V if your module needs it)
+ *   GND  ---------- GND
+ *   TX   ---------- GPIO 16  (ESP32 RX2)
+ *   RX   ---------- GPIO 17  (ESP32 TX2)
+ *
+ *   Built-in LED    GPIO 2 (blue)
+ *
+ * Behaviour:
+ *   1. Blue LED on at boot = sketch is alive.
+ *   2. MPU-6050 motion detection → buzzer fires (with debug prints).
+ *   3. GT-U7 GPS coordinates printed to Serial every few seconds.
+ */
+
+#include <Wire.h>
+
+// ── Pin definitions ──
+#define BUZZER_PIN   25
+#define LED_PIN       2
+
+#define GPS_RX_PIN   16   // ESP32 RX2 ← GPS TX
+#define GPS_TX_PIN   17   // ESP32 TX2 → GPS RX
+
+// ── MPU-6050 ──
+#define MPU_ADDR  0x68
+
+// ── Tuning ──
+#define ACCEL_THRESHOLD   1.5
+#define BUZZ_DURATION_MS  300
+#define LOOP_DELAY_MS      50
+
+// ── GPS ──
+#define GPS_PRINT_INTERVAL  5000  // print coords every 5 s
+unsigned long lastGpsPrint = 0;
+
+// Baseline accel
+float baseX = 0, baseY = 0, baseZ = 0;
+
+// GPS sentence buffer
+char nmeaBuf[128];
+int  nmeaIdx = 0;
+
+// Last known position
+float gpsLat = 0, gpsLon = 0;
+bool  gpsFix = false;
+
+// ─────────────────────────────────────────────
+//  MPU-6050 helpers
+// ─────────────────────────────────────────────
+void readAccel(float &ax, float &ay, float &az) {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_ADDR, 6, true);
+
+  int16_t rawX = (Wire.read() << 8) | Wire.read();
+  int16_t rawY = (Wire.read() << 8) | Wire.read();
+  int16_t rawZ = (Wire.read() << 8) | Wire.read();
+
+  ax = rawX / 16384.0;
+  ay = rawY / 16384.0;
+  az = rawZ / 16384.0;
+}
+
+void calibrate() {
+  float sx = 0, sy = 0, sz = 0;
+  const int samples = 50;
+  for (int i = 0; i < samples; i++) {
+    float ax, ay, az;
+    readAccel(ax, ay, az);
+    sx += ax; sy += ay; sz += az;
+    delay(10);
+  }
+  baseX = sx / samples;
+  baseY = sy / samples;
+  baseZ = sz / samples;
+  Serial.printf("Baseline  X:%.2f  Y:%.2f  Z:%.2f g\n", baseX, baseY, baseZ);
+}
+
+// ─────────────────────────────────────────────
+//  GPS NMEA parsing helpers
+// ─────────────────────────────────────────────
+
+// Convert NMEA ddmm.mmmm → decimal degrees
+float nmeaToDecimal(const char *raw, const char *dir) {
+  float val = atof(raw);
+  int   deg = (int)(val / 100);
+  float min = val - (deg * 100);
+  float dec = deg + (min / 60.0);
+  if (*dir == 'S' || *dir == 'W') dec = -dec;
+  return dec;
+}
+
+// Grab the n-th comma-delimited field from a string
+bool getField(const char *sentence, int fieldNum, char *out, int maxLen) {
+  int  cur = 0;
+  const char *p = sentence;
+  while (cur < fieldNum) {
+    p = strchr(p, ',');
+    if (!p) return false;
+    p++;
+    cur++;
+  }
+  int i = 0;
+  while (*p && *p != ',' && *p != '*' && i < maxLen - 1) {
+    out[i++] = *p++;
+  }
+  out[i] = '\0';
+  return i > 0;
+}
+
+// Parse a $GPGGA or $GNGGA sentence for lat/lon
+void parseGGA(const char *sentence) {
+  char latRaw[16], latDir[4], lonRaw[16], lonDir[4], fixQ[4];
+
+  // Field 6 = fix quality (0 = no fix)
+  if (!getField(sentence, 6, fixQ, sizeof(fixQ))) return;
+  if (atoi(fixQ) == 0) {
+    gpsFix = false;
+    return;
+  }
+
+  if (!getField(sentence, 2, latRaw, sizeof(latRaw))) return;
+  if (!getField(sentence, 3, latDir, sizeof(latDir))) return;
+  if (!getField(sentence, 4, lonRaw, sizeof(lonRaw))) return;
+  if (!getField(sentence, 5, lonDir, sizeof(lonDir))) return;
+
+  gpsLat = nmeaToDecimal(latRaw, latDir);
+  gpsLon = nmeaToDecimal(lonRaw, lonDir);
+  gpsFix = true;
+}
+
+// Called each time a full NMEA sentence is received
+void processNMEA(const char *sentence) {
+  if (strstr(sentence, "GGA")) {
+    parseGGA(sentence);
+  }
+}
+
+// Feed one character at a time from Serial2
+void gpsReadChar(char c) {
+  if (c == '$') {
+    nmeaIdx = 0;  // start of new sentence
+  }
+  if (nmeaIdx < (int)sizeof(nmeaBuf) - 1) {
+    nmeaBuf[nmeaIdx++] = c;
+  }
+  if (c == '\n') {
+    nmeaBuf[nmeaIdx] = '\0';
+    processNMEA(nmeaBuf);
+    nmeaIdx = 0;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Setup
+// ─────────────────────────────────────────────
+void setup() {
+  Serial.begin(115200);
+
+  // --- LED ---
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
+  Serial.println("LED ON — sketch is running.");
+
+  // --- Buzzer ---
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  Serial.println("[BUZZER] Pin configured, initial state LOW.");
+
+  // --- MPU-6050 ---
+  Wire.begin(21, 22);
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  Wire.endTransmission(true);
+  delay(100);
+  Serial.println("MPU-6050 initialised.");
+
+  Serial.println("Calibrating — keep sensor still...");
+  calibrate();
+
+  // --- GPS on Serial2 ---
+  Serial2.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  Serial.println("GPS Serial2 started on RX=16 TX=17.");
+
+  Serial.println("\nReady! Motion → buzzer | GPS coords every 5s\n");
+}
+
+// ─────────────────────────────────────────────
+//  Loop
+// ─────────────────────────────────────────────
+void loop() {
+
+  // ── 1. Read GPS characters (non-blocking) ──
+  while (Serial2.available()) {
+    char c = Serial2.read();
+    Serial.print(c);           // RAW debug — see if anything comes in
+    gpsReadChar(c);
+  }
+
+  // ── 2. Print GPS coords periodically ──
+  if (millis() - lastGpsPrint >= GPS_PRINT_INTERVAL) {
+    lastGpsPrint = millis();
+    if (gpsFix) {
+      Serial.printf("[GPS] Lat: %.6f  Lon: %.6f\n", gpsLat, gpsLon);
+    } else {
+      Serial.println("[GPS] No fix yet — waiting for satellites...");
+    }
+  }
+
+  // ── 3. Motion detection ──
+  float ax, ay, az;
+  readAccel(ax, ay, az);
+
+  float dx = ax - baseX;
+  float dy = ay - baseY;
+  float dz = az - baseZ;
+  float magnitude = sqrt(dx * dx + dy * dy + dz * dz);
+
+  if (magnitude > ACCEL_THRESHOLD) {
+    Serial.printf("[MOTION] delta=%.2f g  — BUZZER ON\n", magnitude);
+    
+    digitalWrite(BUZZER_PIN, HIGH);
+    Serial.printf("[BUZZER] GPIO %d set HIGH  (read back: %d)\n",
+                  BUZZER_PIN, digitalRead(BUZZER_PIN));
+    
+    delay(BUZZ_DURATION_MS);
+    
+    digitalWrite(BUZZER_PIN, LOW);
+    Serial.printf("[BUZZER] GPIO %d set LOW   (read back: %d)\n",
+                  BUZZER_PIN, digitalRead(BUZZER_PIN));
+  }
+
+  delay(LOOP_DELAY_MS);
+}
