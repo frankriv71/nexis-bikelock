@@ -9,12 +9,12 @@ import { getFirestore } from 'firebase/firestore'
 export const DEMO_MODE = false
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyAjxHkdVZepyxNCVvj5MnALPIJ9bH01wWQ",
-  authDomain:        "nexis-bike-lock.firebaseapp.com",
-  projectId:         "nexis-bike-lock",
-  storageBucket:     "nexis-bike-lock.firebasestorage.app",
-  messagingSenderId: "303748770080",
-  appId:             "1:303748770080:web:270c285742590a7fd44f45",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
 const app = initializeApp(firebaseConfig)
