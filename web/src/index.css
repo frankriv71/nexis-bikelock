@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #0e0d0b;
+  color: #e2ddd4;
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+/* ---- Staggered page-load reveals ---- */
+.reveal   { animation: fade-up 0.4s ease both; }
+.reveal-1 { animation-delay: 0.05s; }
+.reveal-2 { animation-delay: 0.12s; }
+.reveal-3 { animation-delay: 0.20s; }
+.reveal-4 { animation-delay: 0.28s; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- State pulse rings — softer, slower ---- */
+@keyframes ring-green {
+  0%   { box-shadow: 0 0 0 0 rgba(95,158,143,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(95,158,143,0); }
+  100% { box-shadow: 0 0 0 0 rgba(95,158,143,0); }
+}
+@keyframes ring-red {
+  0%   { box-shadow: 0 0 0 0 rgba(176,82,82,0.45); }
+  70%  { box-shadow: 0 0 0 9px rgba(176,82,82,0); }
+  100% { box-shadow: 0 0 0 0 rgba(176,82,82,0); }
+}
+@keyframes ring-amber {
+  0%   { box-shadow: 0 0 0 0 rgba(201,145,58,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(201,145,58,0); }
+  100% { box-shadow: 0 0 0 0 rgba(201,145,58,0); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.pulse-green  { animation: ring-green  3s ease-out infinite; }
+.pulse-red    { animation: ring-red    1.2s ease-out infinite; }
+.pulse-amber  { animation: ring-amber  2.2s ease-out infinite; }
+.blink        { animation: blink 1.3s ease-in-out infinite; }
+
+/* ---- Leaflet overrides ---- */
+.leaflet-container {
+  background: #0c0b09 !important;
+  font-family: 'DM Mono', monospace !important;
+}
+.leaflet-control-attribution {
+  background: rgba(14,13,11,0.8) !important;
+  color: #706860 !important;
+  font-size: 10px !important;
+}
+.leaflet-control-zoom a {
+  background: #161412 !important;
+  color: #e2ddd4 !important;
+  border-color: #2a2622 !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #1e1b18 !important;
+}
+
+/* ---- Custom map marker ---- */
+.nexis-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid rgba(226,221,212,0.6);
+}
+.nexis-dot.s-armed    { background: #5f9e8f; animation: ring-green  3s   ease-out infinite; }
+.nexis-dot.s-arming   { background: #c9913a; animation: blink       1.3s ease-in-out infinite; }
+.nexis-dot.s-warning  { background: #b87040; animation: ring-amber  2.2s ease-out infinite; }
+.nexis-dot.s-alert    { background: #b05252; animation: ring-red    1.2s ease-out infinite; }
+.nexis-dot.s-disarmed { background: #4a4340; }
+
+/* ---- Anchor marker — crosshair style ---- */
+.nexis-anchor {
+  width: 14px;
+  height: 14px;
+  position: relative;
+}
+.nexis-anchor::before,
+.nexis-anchor::after {
+  content: '';
+  position: absolute;
+  background: rgba(201,145,58,0.7);
+}
+.nexis-anchor::before {
+  width: 1px; height: 100%;
+  left: 50%; top: 0;
+  transform: translateX(-50%);
+}
+.nexis-anchor::after {
+  height: 1px; width: 100%;
+  top: 50%; left: 0;
+  transform: translateY(-50%);
+}
+
+/* ---- Scroll fade at bottom of alert list ---- */
+.scroll-fade {
+  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar       { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2622; border-radius: 2px; }

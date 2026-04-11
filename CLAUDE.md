@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# NEXIS Bike Lock
 
 ## Project Overview
 IoT bike lock system: ESP32 hardware detects theft via accelerometer movement + GPS geofence breach, triggers a physical buzzer alert, and sends real-time alerts to a web dashboard.
@@ -13,7 +11,7 @@ IoT bike lock system: ESP32 hardware detects theft via accelerometer movement + 
 
 ```
 ESP32 (on bike)
-  ├── Detects: motion (MPU6050), geofence breach (GT-U7 GPS), sound (KY-037)
+  ├── Detects: motion (MPU6050), geofence breach (GT-U7 GPS)
   ├── Physical alert: passive buzzer on GPIO15
   ├── WiFi: connects to network via BLE provisioning (NRFconnect)
   └── On theft detection:
@@ -35,7 +33,7 @@ Web Dashboard (React)
 - **Board:** ESP-WROOM-32
 - **Language:** Arduino C++
 - **Libraries:** TinyGPSPlus, ArduinoJson, BLE, WiFi, Preferences
-- **Sensors:** MPU6050 (accel), GT-U7 (GPS), KY-037 (sound), passive buzzer
+- **Sensors:** MPU6050 (accel), GT-U7 (GPS), passive buzzer
 
 ### Web App
 - **Frontend:** React (Vite)
@@ -86,8 +84,6 @@ NEXIS_Bike_Lock/
 
 | Component       | Pin    | GPIO |
 |-----------------|--------|------|
-| KY-037 AO       | Analog | 4    |
-| KY-037 DO       | Digital| 23   |
 | MPU6050 SDA     | I2C    | 21   |
 | MPU6050 SCL     | I2C    | 22   |
 | GT-U7 GPS TXD   | UART   | 16   |
@@ -106,9 +102,8 @@ ALERT → (disarm only) → DISARMED
 
 ## Detection Thresholds (current firmware values)
 - **Motion:** raw accel delta > 8000, 3 events in 5s → ALERT
-- **Sound:** adaptive baseline, spike > 1.5x baseline, 3 events in 5s → ALERT
 - **Geofence:** 50m radius from anchor point, checked every 10s
-- **Warmup:** 3s after arming (motion/sound ignored, GPS still active)
+- **Warmup:** 3s after arming (motion ignored, GPS still active)
 
 ## Firestore Schema
 
@@ -121,7 +116,6 @@ ALERT → (disarm only) → DISARMED
   "anchorLat": 43.0381,
   "anchorLng": -76.1347,
   "geofenceRadius": 50,
-  "batteryPct": 87,
   "lastSeen": "2026-04-10T12:00:00Z",
   "wifiSSID": "AirOrangeX",
   "ip": "10.1.225.34"
@@ -138,7 +132,6 @@ ALERT → (disarm only) → DISARMED
   "lng": -76.1345,
   "distFromAnchor": 52.3,
   "motionEvents": 3,
-  "soundEvents": 1,
   "acknowledged": false
 }
 ```
@@ -150,7 +143,7 @@ ALERT → (disarm only) → DISARMED
 2. **Add WiFi HTTP client** — on ALERT state, POST alert data to Firestore REST API
 3. **Add Discord webhook** — second HTTP POST on alert
 4. **Add Firestore polling** — periodically check /locks/{id} for remote arm/disarm commands
-5. **Add status heartbeat** — periodic PUT to /locks/{id} with GPS, state, battery
+5. **Add status heartbeat** — periodic PUT to /locks/{id} with GPS, state
 
 ### Web App
 1. **Firebase project setup** — Firestore, Hosting, Auth (anonymous or email)
@@ -183,16 +176,16 @@ firebase emulators:start
 ## Conventions
 - Use functional React components with hooks
 - Tailwind for all styling, no CSS files
-- Firebase v9+ modular SDK (`import { getFirestore } from 'firebase/firestore'`)
-- All Firestore reads use `onSnapshot` for real-time, not `getDocs`
-- Keep firmware `#define` thresholds at top of file for easy tuning
+- Firebase v9+ modular SDK (import { getFirestore } from 'firebase/firestore')
+- All Firestore reads use onSnapshot for real-time, not getDocs
+- Keep firmware #define thresholds at top of file for easy tuning
 - Timestamps in ISO 8601 / Firestore Timestamp
 - Console errors and edge cases handled — don't leave unhandled promise rejections
 
 ## WiFi Context
 - Campus network: AirOrangeX (open, no password)
 - ESP32 current IP: 10.1.225.34 (DHCP, may change)
-- BLE provisioning via NRFconnect sends JSON: `{"ssid":"...","passphrase":"..."}`
+- BLE provisioning via NRFconnect sends JSON: {"ssid":"...","passphrase":"..."}
 
 ## Notes
 - Hardware is complete and soldered — do not suggest hardware changes
