@@ -1,0 +1,37 @@
+### ESP32 Setup & Testing (WiFi + Web Server)
+
+#### Using nRF Connect (BLE Provisioning)
+
+To send WiFi credentials to the ESP32 over BLE:
+
+1. Download **nRF Connect** (iOS or Android)
+2. Open the app and go to the **Scanner** tab
+3. Scan for devices and look for your ESP32  
+   (name may appear as "WashSentinel", "ESP32", or similar)
+4. Tap the device → press **Connect**
+5. Go to the **Client** / **Services** view
+6. Find the writable characteristic (your custom UUID)
+7. Tap the **up arrow / write button**
+8. Set format to **UTF-8 / Text**
+9. Paste the JSON below and send
+
+---
+
+#### WiFi Provisioning (AirOrangeX - Open Network)
+
+This project uses BLE or serial-based provisioning to send WiFi credentials to the ESP32.
+
+For testing, use:
+
+- **SSID:** AirOrangeX  
+- **Password:** (leave empty — open network)
+
+##### JSON Format for WiFi Credentials
+
+When sending credentials (e.g., via BLE or serial), use:
+
+```json
+{
+  "ssid": "AirOrangeX",
+  "password": ""
+}
